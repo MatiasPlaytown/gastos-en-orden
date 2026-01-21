@@ -15,7 +15,8 @@ const TopHeader: React.FC<TopHeaderProps> = ({ activeTab }) => {
         <img 
           src="https://ptown-wap-ar.s3.sa-east-1.amazonaws.com/gastos-en-orden/gastos-logo.png" 
           alt="Logo" 
-          className="h-11 w-auto object-contain"
+          style={{ width: '184px', height: '36px' }}
+          className="object-contain"
         />
       </div>
       <div className="flex flex-1 justify-end gap-4 sm:gap-8">
