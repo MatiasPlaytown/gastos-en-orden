@@ -7,7 +7,14 @@ interface AICoachProps {
   onClose: () => void;
 }
 
-// Funciones de utilidad para la API Live (PCM, Base64)
+const getSafeApiKey = () => {
+  try {
+    return (globalThis as any).process?.env?.API_KEY || "";
+  } catch {
+    return "";
+  }
+};
+
 function encode(bytes: Uint8Array) {
   let binary = '';
   const len = bytes.byteLength;
@@ -48,7 +55,7 @@ async function decodeAudioData(
 
 const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
   const [messages, setMessages] = useState<{ role: string, text: string }[]>([
-    { role: 'ai', text: 'Toma un respiro profundo. Soy tu coach de bienestar. ¿Cómo te sientes respecto a tu dinero hoy?' }
+    { role: 'ai', text: 'Hola, respira hondo. Soy tu guía de bienestar. ¿Cómo te sientes respecto a tu economía hoy?' }
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -69,16 +76,16 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
 
   const stopLiveMode = () => {
     if (liveSessionRef.current) {
-      liveSessionRef.current.close();
+      try { liveSessionRef.current.close(); } catch {}
       liveSessionRef.current = null;
     }
     if (audioContextsRef.current) {
-      audioContextsRef.current.input.close();
-      audioContextsRef.current.output.close();
+      try { audioContextsRef.current.input.close(); } catch {}
+      try { audioContextsRef.current.output.close(); } catch {}
       audioContextsRef.current = null;
     }
     for (const source of sourcesRef.current) {
-      source.stop();
+      try { source.stop(); } catch {}
     }
     sourcesRef.current.clear();
     setIsLiveMode(false);
@@ -86,9 +93,15 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
   };
 
   const startLiveMode = async () => {
+    const key = getSafeApiKey();
+    if (!key) {
+      alert("Configurando conexión segura... Por favor, intenta de nuevo en unos segundos.");
+      return;
+    }
+
     try {
       setIsLiveConnecting(true);
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: key });
       
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -100,7 +113,6 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
-            console.log('Sesión en vivo abierta');
             setIsLiveConnecting(false);
             setIsLiveMode(true);
             
@@ -108,6 +120,7 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
             
             scriptProcessor.onaudioprocess = (e) => {
+              if (!isLiveMode) return;
               const inputData = e.inputBuffer.getChannelData(0);
               const l = inputData.length;
               const int16 = new Int16Array(l);
@@ -145,12 +158,12 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
             }
 
             if (message.serverContent?.interrupted) {
-              for (const s of sourcesRef.current) s.stop();
+              for (const s of sourcesRef.current) try { s.stop(); } catch {}
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
             }
           },
-          onerror: (e) => console.error('Error Live:', e),
+          onerror: () => stopLiveMode(),
           onclose: () => stopLiveMode(),
         },
         config: {
@@ -158,14 +171,15 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
-          systemInstruction: "Eres el Coach de Bienestar de 'Mis Gastos en Orden'. Habla con tranquilidad y sabiduría en español. Mantén las respuestas cortas y calmantes.",
+          systemInstruction: "Eres el Coach de Bienestar de 'Mis Gastos en Orden'. Habla con tranquilidad y sabiduría en español. Sé extremadamente breve y calmante.",
         },
       });
 
       liveSessionRef.current = await sessionPromise;
     } catch (err) {
-      console.error('Error al iniciar modo en vivo:', err);
+      console.error('Error Live:', err);
       setIsLiveConnecting(false);
+      alert("No se pudo iniciar la voz. ¿Diste permiso al micrófono?");
     }
   };
 
@@ -187,49 +201,51 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="bg-white dark:bg-background-dark w-full max-w-lg h-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-primary/20 relative">
-        <div className="p-6 bg-primary text-white flex justify-between items-center z-10">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-lg h-[80vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-primary/20 relative">
+        <div className="p-7 bg-primary text-white flex justify-between items-center z-10">
           <div className="flex items-center gap-3">
-            <span className={`material-symbols-outlined text-3xl ${isLiveMode ? 'animate-pulse text-secondary-green' : ''}`}>
-              {isLiveMode ? 'graphic_eq' : 'psychology'}
-            </span>
+            <div className="size-10 rounded-full bg-white/20 flex items-center justify-center">
+              <span className={`material-symbols-outlined text-2xl ${isLiveMode ? 'animate-pulse text-secondary-green' : ''}`}>
+                {isLiveMode ? 'graphic_eq' : 'psychology'}
+              </span>
+            </div>
             <div>
-              <h3 className="font-bold text-lg">Coach de Bienestar</h3>
-              <p className="text-xs opacity-80">{isLiveMode ? 'Voz en Vivo Activa' : 'IA para tu Calma'}</p>
+              <h3 className="font-bold text-base">Coach de Bienestar</h3>
+              <p className="text-[10px] uppercase font-bold tracking-widest opacity-80">{isLiveMode ? 'Escuchando con voz' : 'Chat inteligente'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="hover:rotate-90 transition-transform">
+          <button onClick={() => { stopLiveMode(); onClose(); }} className="size-10 flex items-center justify-center rounded-full hover:bg-white/10">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
         {isLiveMode && (
-          <div className="absolute inset-0 top-20 bg-primary/95 backdrop-blur-md flex flex-col items-center justify-center text-white z-20 animate-in zoom-in duration-300">
-            <div className="relative mb-8">
+          <div className="absolute inset-0 top-[88px] bg-primary/95 backdrop-blur-xl flex flex-col items-center justify-center text-white z-20 animate-in zoom-in duration-300 px-10 text-center">
+            <div className="relative mb-10">
               <div className="absolute inset-0 bg-white/20 rounded-full animate-ping"></div>
               <div className="relative size-32 bg-white rounded-full flex items-center justify-center text-primary shadow-2xl">
                 <span className="material-symbols-outlined text-6xl">mic</span>
               </div>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Escuchando...</h2>
-            <p className="text-white/80 text-center px-10 mb-10">Habla con naturalidad sobre tus sentimientos financieros.</p>
+            <h2 className="text-2xl font-black mb-3">Estoy escuchando...</h2>
+            <p className="text-white/80 font-medium mb-12">Cuéntame qué te preocupa hoy o qué te hace sentir bien con tu dinero.</p>
             <button 
               onClick={stopLiveMode}
-              className="px-8 py-3 bg-white text-primary rounded-full font-bold shadow-xl hover:scale-105 active:scale-95 transition-transform"
+              className="px-10 py-4 bg-white text-primary rounded-full font-black shadow-xl hover:scale-105 active:scale-95 transition-transform"
             >
-              Detener Voz
+              Cerrar voz
             </button>
           </div>
         )}
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-background-light dark:bg-background-dark">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-5 bg-background-light dark:bg-slate-900">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
-              <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
+              <div className={`max-w-[85%] p-4 rounded-2xl text-sm font-medium leading-relaxed ${
                 m.role === 'user' 
                 ? 'bg-primary text-white rounded-tr-none shadow-sm' 
-                : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700 shadow-sm'
+                : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-100 dark:border-slate-700 shadow-sm'
               }`}>
                 {m.text}
               </div>
@@ -238,7 +254,7 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
           {isTyping && (
             <div className="flex justify-start">
               <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 dark:border-slate-700">
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                   <div className="size-1.5 bg-primary/40 rounded-full animate-bounce"></div>
                   <div className="size-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.2s]"></div>
                   <div className="size-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.4s]"></div>
@@ -248,29 +264,31 @@ const AICoach: React.FC<AICoachProps> = ({ onClose }) => {
           )}
         </div>
 
-        <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+        <div className="p-5 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex gap-3">
           <button 
             onClick={isLiveMode ? stopLiveMode : startLiveMode}
             disabled={isLiveConnecting}
-            className={`size-10 rounded-full flex items-center justify-center transition-all ${
-              isLiveMode ? 'bg-red-500 text-white animate-pulse' : 'bg-secondary-green/20 text-secondary-green hover:bg-secondary-green hover:text-white'
+            className={`size-12 rounded-full flex items-center justify-center transition-all ${
+              isLiveMode ? 'bg-red-500 text-white animate-pulse' : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
             } disabled:opacity-50`}
-            title="Iniciar Sesión de Voz"
+            title="Hablar por voz"
           >
-            <span className="material-symbols-outlined">{isLiveConnecting ? 'sync' : 'mic'}</span>
+            <span className="material-symbols-outlined">{isLiveConnecting ? 'hourglass_top' : 'mic'}</span>
           </button>
-          <input 
-            type="text" 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Comparte lo que tienes en mente..."
-            className="flex-1 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-full px-5 text-sm focus:ring-primary focus:border-primary dark:text-white transition-all"
-          />
+          <div className="flex-1 relative">
+            <input 
+              type="text" 
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="¿Qué hay en tu mente?..."
+              className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-full px-6 py-3.5 text-sm font-medium focus:ring-2 focus:ring-primary dark:text-white transition-all"
+            />
+          </div>
           <button 
             onClick={handleSend}
             disabled={!input.trim() || isTyping || isLiveMode}
-            className="size-10 bg-primary text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 shadow-md"
+            className="size-12 bg-primary text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 shadow-md shadow-primary/20"
           >
             <span className="material-symbols-outlined">send</span>
           </button>
