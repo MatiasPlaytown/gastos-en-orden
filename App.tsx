@@ -27,11 +27,14 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background-light dark:bg-background-dark text-[#111618] dark:text-white pb-24">
-      {/* Header Minimalista */}
+      {/* Header Minimalista con Logo Oficial agrandado y sin texto */}
       <header className="px-6 py-4 flex justify-between items-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">account_balance_wallet</span>
-          <h1 className="font-bold text-lg tracking-tight">Gastos en Orden</h1>
+        <div className="flex items-center">
+          <img 
+            src="https://ptown-wap-ar.s3.sa-east-1.amazonaws.com/gastos-en-orden/gastos-logo.png" 
+            alt="Gastos en Orden" 
+            className="h-11 w-auto object-contain"
+          />
         </div>
         <button 
           onClick={() => setShowCoach(true)}
