@@ -1,0 +1,7 @@
+{
+  "name": "Mis Gastos en Orden",
+  "description": "A financial wellness application designed to bring peace and clarity to your personal finances through mindful spending, daily tips, and stressful-free challenges.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
